@@ -3,7 +3,6 @@ import fnmatch
 import logging
 import time
 from openai import OpenAI
-from termcolor import colored
 from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 from prompt_toolkit.completion import WordCompleter
@@ -13,6 +12,17 @@ from rich.console import Console
 from rich.table import Table
 import difflib
 import re
+from color_utils import (
+    Color,
+    print_in_blue,
+    print_in_cyan,
+    print_in_green,
+    print_in_magenta,
+    print_in_red,
+    print_in_yellow,
+    colored_magenta,
+    colored_dark_grey
+)
 
 
 MODEL = "o1-mini"
@@ -214,29 +224,29 @@ def add_file_to_context(file_path, added_files, action='to the chat context'):
     if os.path.isfile(file_path):
         # Exclude based on directory
         if any(ex_dir in file_path for ex_dir in excluded_dirs):
-            print(colored(f"Skipped excluded directory file: {file_path}", "yellow"))
+            print_in_yellow(f"Skipped excluded directory file: {file_path}")
             logging.info(f"Skipped excluded directory file: {file_path}")
             return
         # Exclude based on gitignore patterns
         if gitignore_patterns and should_ignore(file_path, gitignore_patterns):
-            print(colored(f"Skipped file matching .gitignore pattern: {file_path}", "yellow"))
+            print_in_yellow(f"Skipped file matching .gitignore pattern: {file_path}")
             logging.info(f"Skipped file matching .gitignore pattern: {file_path}")
             return
         if is_binary_file(file_path):
-            print(colored(f"Skipped binary file: {file_path}", "yellow"))
+            print_in_yellow(f"Skipped binary file: {file_path}")
             logging.info(f"Skipped binary file: {file_path}")
             return
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as file:
                 content = file.read()
                 added_files[file_path] = content
-                print(colored(f"Added {file_path} {action}.", "green"))
+                print_in_green(f"Added {file_path} {action}.")
                 logging.info(f"Added {file_path} {action}.")
         except Exception as e:
-            print(colored(f"Error reading file {file_path}: {e}", "red"))
+            print_in_red(f"Error reading file {file_path}: {e}")
             logging.error(f"Error reading file {file_path}: {e}")
     else:
-        print(colored(f"Error: {file_path} is not a file.", "red"))
+        print_in_red(f"Error: {file_path} is not a file.")
         logging.error(f"{file_path} is not a file.")
 
 
@@ -247,25 +257,25 @@ def apply_modifications(new_content, file_path):
             old_content = file.read()
 
         if old_content.strip() == new_content.strip():
-            print(colored(f"No changes detected in {file_path}", "red"))
+            print_in_red(f"No changes detected in {file_path}")
             return True
 
         display_diff(old_content, new_content, file_path)
 
-        confirm = prompt(f"Apply these changes to {file_path}? (yes/no): ", style=Style.from_dict({'prompt': 'orange'})).strip().lower()
+        confirm = prompt(f"Apply these changes to {file_path}? (yes/no): ", style=Style.from_dict({'prompt': Color.ORANGE.va})).strip().lower()
         if confirm == 'yes':
             with open(file_path, 'w') as file:
                 file.write(new_content)
-            print(colored(f"Modifications applied to {file_path} successfully.", "green"))
+            print_in_green(f"Modifications applied to {file_path} successfully.")
             logging.info(f"Modifications applied to {file_path} successfully.")
             return True
         else:
-            print(colored(f"Changes not applied to {file_path}.", "red"))
+            print_in_red(f"Changes not applied to {file_path}.")
             logging.info(f"User chose not to apply changes to {file_path}.")
             return False
 
     except Exception as e:
-        print(colored(f"An error occurred while applying modifications to {file_path}: {e}", "red"))
+        print_in_red(f"An error occurred while applying modifications to {file_path}: {e}")
         logging.error(f"Error applying modifications to {file_path}: {e}")
         return False
 
@@ -293,9 +303,9 @@ n=5
         if status == ' ':
             continue  # Skip unchanged lines
         elif status == '-':
-            table.add_row("Removed", str(line_number), content, style="red")
+            table.add_row("Removed", str(line_number), content, style=Color.RED.value)
         elif status == '+':
-            table.add_row("Added", str(line_number), content, style="green")
+            table.add_row("Added", str(line_number), content, style=Color.GREEN.value)
         line_number += 1
     console.print(table)
 
@@ -319,7 +329,7 @@ def apply_creation_steps(creation_response, added_files, retry_count=0):
                 if item_type == 'FOLDER':
                     # Create the folder
                     os.makedirs(path, exist_ok=True)
-                    print(colored(f"Folder created: {path}", "green"))
+                    print_in_green(f"Folder created: {path}")
                     logging.info(f"Folder created: {path}")
                 elif item_type == 'FILE':
                     # Extract file content (everything after the special comment line)
@@ -329,16 +339,16 @@ def apply_creation_steps(creation_response, added_files, retry_count=0):
                     directory = os.path.dirname(path)
                     if directory and not os.path.exists(directory):
                         os.makedirs(directory, exist_ok=True)
-                        print(colored(f"Folder created: {directory}", "green"))
+                        print_in_green(f"Folder created: {directory}")
                         logging.info(f"Folder created: {directory}")
 
                     # Write content to the file
                     with open(path, 'w', encoding='utf-8') as f:
                         f.write(file_content)
-                    print(colored(f"File created: {path}", "green"))
+                    print_in_green(f"File created: {path}")
                     logging.info(f"File created: {path}")
             else:
-                print(colored("Error: Could not determine the file or folder information from the code block.", "red"))
+                print_in_red("Error: Could not determine the file or folder information from the code block.")
                 logging.error("Could not determine the file or folder information from the code block.")
                 continue
 
@@ -346,7 +356,7 @@ def apply_creation_steps(creation_response, added_files, retry_count=0):
 
     except ValueError as e:
         if retry_count < max_retries:
-            print(colored(f"Error: {str(e)} Retrying... (Attempt {retry_count + 1})", "red"))
+            print_in_red(f"Error: {str(e)} Retrying... (Attempt {retry_count + 1})")
             logging.warning(f"Creation parsing failed: {str(e)}. Retrying... (Attempt {retry_count + 1})")
             error_message = f"{str(e)} Please provide the creation instructions again using the specified format."
             time.sleep(2 ** retry_count)  # Exponential backoff
@@ -356,13 +366,13 @@ def apply_creation_steps(creation_response, added_files, retry_count=0):
             else:
                 return False
         else:
-            print(colored(f"Failed to parse creation instructions after multiple attempts: {str(e)}", "red"))
+            print_in_red(f"Failed to parse creation instructions after multiple attempts: {str(e)}")
             logging.error(f"Failed to parse creation instructions after multiple attempts: {str(e)}")
             print("Creation response that failed to parse:")
             print(creation_response)
             return False
     except Exception as e:
-        print(colored(f"An unexpected error occurred during creation: {e}", "red"))
+        print_in_red(f"An unexpected error occurred during creation: {e}")
         logging.error(f"An unexpected error occurred during creation: {e}")
         return False
 
@@ -428,10 +438,10 @@ def chat_with_ai(user_message, is_edit_request=False, retry_count=0, added_files
         ]
         
         if is_edit_request and retry_count == 0:
-            print(colored("Analyzing files and generating modifications...", "magenta"))
+            print_in_magenta("Analyzing files and generating modifications...")
             logging.info("Sending edit request to AI.")
         elif not is_edit_request:
-            print(colored("o1 engineer is thinking...", "magenta"))
+            print_in_magenta("o1 engineer is thinking...")
             logging.info("Sending general query to AI.")
 
         response = client.chat.completions.create(
@@ -451,7 +461,7 @@ def chat_with_ai(user_message, is_edit_request=False, retry_count=0, added_files
 
         return last_ai_response
     except Exception as e:
-        print(colored(f"Error while communicating with OpenAI: {e}", "red"))
+        print_in_red(f"Error while communicating with OpenAI: {e}")
         logging.error(f"Error while communicating with OpenAI: {e}")
         return None
     
@@ -461,20 +471,18 @@ def main():
     global last_ai_response, conversation_history
 
 
-    print(colored("o1 engineer is ready to help you.", "cyan"))
+    print_in_cyan("o1 engineer is ready to help you.")
     print("\nAvailable commands:")
-    print(f"{colored('/edit', 'magenta'):<10} {colored('Edit files or directories (followed by paths)', 'dark_grey')}")
-    print(f"{colored('/create', 'magenta'):<10} {colored('Create files or folders (followed by instructions)', 'dark_grey')}")
-    print(f"{colored('/add', 'magenta'):<10} {colored('Add files or folders to context', 'dark_grey')}")
-    print(f"{colored('/debug', 'magenta'):<10} {colored('Print the last AI response', 'dark_grey')}")
-    print(f"{colored('/reset', 'magenta'):<10} {colored('Reset chat context and clear added files', 'dark_grey')}")
-    print(f"{colored('/review', 'magenta'):<10} {colored('Review code files (followed by file paths)', 'dark_grey')}")
-    print(f"{colored('/planning', 'magenta'):<10} {colored('Generate a detailed plan based on your request', 'dark_grey')}")
-    print(f"{colored('/quit', 'magenta'):<10} {colored('Exit the program', 'dark_grey')}")
+    print(f"{colored_magenta('/edit'):<10} {colored_dark_grey('Edit files or directories (followed by paths)')}")
+    print(f"{colored_magenta('/create'):<10} {colored_dark_grey('Create files or folders (followed by instructions)')}")
+    print(f"{colored_magenta('/add'):<10} {colored_dark_grey('Add files or folders to context')}")
+    print(f"{colored_magenta('/debug'):<10} {colored_dark_grey('Print the last AI response')}")
+    print(f"{colored_magenta('/reset'):<10} {colored_dark_grey('Reset chat context and clear added files')}")
+    print(f"{colored_magenta('/review'):<10} {colored_dark_grey('Review code files (followed by file paths)')}")
+    print(f"{colored_magenta('/planning'):<10} {colored_dark_grey('Generate a detailed plan based on your request')}")
+    print(f"{colored_magenta('/quit'):<10} {colored_dark_grey('Exit the program')}")
 
-    style = Style.from_dict({
-        'prompt': 'cyan',
-    })
+    style = Style.from_dict({'prompt': Color.CYAN.value})
 
     # Get the list of files in the current directory
     files = [f for f in os.listdir('.') if os.path.isfile(f)]
@@ -499,22 +507,22 @@ def main():
 
         elif user_input.lower() == '/debug':
             if last_ai_response:
-                print(colored("Last AI Response:", "blue"))
+                print_in_blue("Last AI Response:")
                 print(last_ai_response)
             else:
-                print(colored("No AI response available yet.", "red"))
+                print_in_red("No AI response available yet.")
 
         elif user_input.lower() == '/reset':
             conversation_history = []
             added_files.clear()
             last_ai_response = None
-            print(colored("Chat context and added files have been reset.", "green"))
+            print_in_green("Chat context and added files have been reset.")
             logging.info("Chat context and added files have been reset by the user.")
 
         elif user_input.startswith('/add'):
             paths = user_input.split()[1:]
             if not paths:
-                print(colored("Please provide at least one file or folder path.", "red"))
+                print_in_red("Please provide at least one file or folder path.")
                 logging.warning("User issued /add without file or folder paths.")
                 continue
 
@@ -529,17 +537,17 @@ def main():
                             file_path = os.path.join(root, file)
                             add_file_to_context(file_path, added_files)
                 else:
-                    print(colored(f"Error: {path} is neither a file nor a directory.", "red"))
+                    print_in_red(f"Error: {path} is neither a file nor a directory.")
                     logging.error(f"{path} is neither a file nor a directory.")
             total_size = sum(len(content) for content in added_files.values())
             if total_size > 100000:  # Warning if total content exceeds ~100KB
-                print(colored("Warning: The total size of added files is large and may affect performance.", "red"))
+                print_in_red("Warning: The total size of added files is large and may affect performance.")
                 logging.warning("Total size of added files exceeds 100KB.")
 
         elif user_input.startswith('/edit'):
             paths = user_input.split()[1:]
             if not paths:
-                print(colored("Please provide at least one file or folder path.", "red"))
+                print_in_red("Please provide at least one file or folder path.")
                 logging.warning("User issued /edit without file or folder paths.")
                 continue
             for path in paths:
@@ -553,10 +561,10 @@ def main():
                             file_path = os.path.join(root, file)
                             add_file_to_context(file_path, added_files)
                 else:
-                    print(colored(f"Error: {path} is neither a file nor a directory.", "red"))
+                    print_in_red(f"Error: {path} is neither a file nor a directory.")
                     logging.error(f"{path} is neither a file nor a directory.")
             if not added_files:
-                print(colored("No valid files to edit.", "red"))
+                print_in_red("No valid files to edit.")
                 continue
             edit_instruction = prompt(f"Edit Instruction for all files: ", style=style).strip()
 
@@ -580,13 +588,13 @@ Files to modify:
                     for file_path, new_content in modified_files.items():
                         apply_modifications(new_content, file_path)
                 else:
-                    print(colored("Edit instructions not applied.", "red"))
+                    print_in_red("Edit instructions not applied.")
                     logging.info("User chose not to apply edit instructions.")
 
         elif user_input.startswith('/create'):
             creation_instruction = user_input[7:].strip()  # Remove '/create' and leading/trailing whitespace
             if not creation_instruction:
-                print(colored("Please provide creation instructions after /create.", "red"))
+                print_in_red("Please provide creation instructions after /create.")
                 logging.warning("User issued /create without instructions.")
                 continue
 
@@ -609,14 +617,14 @@ Files to modify:
                                 break
                             ai_response = chat_with_ai("The previous creation attempt failed. Please try again with a different approach.", is_edit_request=False, added_files=added_files)
                     else:
-                        print(colored("Creation steps not executed.", "red"))
+                        print_in_red("Creation steps not executed.")
                         logging.info("User chose not to execute creation steps.")
                         break
 
         elif user_input.startswith('/review'):
             paths = user_input.split()[1:]
             if not paths:
-                print(colored("Please provide at least one file or folder path.", "red"))
+                print_in_red("Please provide at least one file or folder path.")
                 logging.warning("User issued /review without file or folder paths.")
                 continue
 
@@ -632,48 +640,48 @@ Files to modify:
                             file_path = os.path.join(root, file)
                             add_file_to_context(file_path, file_contents, action='to review')
                 else:
-                    print(colored(f"Error: {path} is neither a file nor a directory.", "red"))
+                    print_in_red(f"Error: {path} is neither a file nor a directory.")
                     logging.error(f"{path} is neither a file nor a directory.")
 
             if not file_contents:
-                print(colored("No valid files to review.", "red"))
+                print_in_red("No valid files to review.")
                 continue
 
             review_request = f"{CODE_REVIEW_PROMPT}\n\nFiles to review:\n"
             for file_path, content in file_contents.items():
                 review_request += f"\nFile: {file_path}\nContent:\n{content}\n\n"
 
-            print(colored("Analyzing code and generating review...", "magenta"))
+            print_in_magenta("Analyzing code and generating review...")
             ai_response = chat_with_ai(review_request, is_edit_request=False, added_files=added_files)
             
             if ai_response:
                 print()
-                print(colored("Code Review:", "blue"))
+                print_in_blue("Code Review:")
                 rprint(Markdown(ai_response))
                 logging.info("Provided code review for requested files.")
 
         elif user_input.startswith('/planning'):
             planning_instruction = user_input[9:].strip()  # Remove '/planning' and leading/trailing whitespace
             if not planning_instruction:
-                print(colored("Please provide a planning request after /planning.", "red"))
+                print_in_red("Please provide a planning request after /planning.")
                 logging.warning("User issued /planning without instructions.")
                 continue
             planning_request = f"{PLANNING_PROMPT}\n\nUser request: {planning_instruction}"
             ai_response = chat_with_ai(planning_request, is_edit_request=False, added_files=added_files)
             if ai_response:
                 print()
-                print(colored("o1 engineer: Here is your detailed plan:", "blue"))
+                print_in_blue("o1 engineer: Here is your detailed plan:")
                 rprint(Markdown(ai_response))
                 logging.info("Provided planning response to user.")
             else:
-                print(colored("Failed to generate a planning response. Please try again.", "red"))
+                print_in_red("Failed to generate a planning response. Please try again.")
                 logging.error("AI failed to generate a planning response.")
 
         else:
             ai_response = chat_with_ai(user_input, added_files=added_files)
             if ai_response:
                 print()
-                print(colored("o1 engineer:", "blue"))
+                print_in_blue("o1 engineer:")
                 rprint(Markdown(ai_response))
                 logging.info("Provided AI response to user query.")
 
